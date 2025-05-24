@@ -1,5 +1,5 @@
 node_modules
 build
 .env
-uploads
+downloads
 package-lock.json

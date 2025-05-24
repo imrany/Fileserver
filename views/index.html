@@ -3,49 +3,90 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File server</title>
+    <title>File Server</title>
     <link rel="stylesheet" href="./style.css">
-    <link rel="shortcut icon" href="favicon.jpg" type="image/x-jpg">
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="favicon.jpg">
 </head>
 <body>
   <div class="container">
     <h1>Share Files</h1>
-    <form>
-      <input type="file" name="file" id="file" required multiple/>
-      <button style="margin-top: 10px;">Share</button>
+    <form id="uploadForm">
+      <input type="file" name="file" id="file" required />
+      <button type="submit" style="margin-top: 10px;">Share</button>
     </form>
+
+    <!-- Progress bar section -->
+    <div id="progressContainer" style="display: none; margin-top: 20px;">
+      <progress id="progressBar" value="0" max="100"></progress>
+      <p id="progressText">0% uploaded</p>
+    </div>
 
     <a href="./receive.html" style="margin-top: 20px;">See files</a>
   </div>
 
   <script>
-    const form=document.querySelector("form")
-    form.addEventListener("submit",async(e)=>{
-      e.preventDefault()
-      const file=document.getElementById("file")
-      const formData=new FormData()
-      for (let index = 0; index < file.files.length; index++) {
-        formData.append("files",file.files[index])
+    const form = document.getElementById("uploadForm");
+    const progressContainer = document.getElementById("progressContainer");
+    const progressBar = document.getElementById("progressBar");
+    const progressText = document.getElementById("progressText");
+
+    const chunkSize = 2 * 1024 * 1024; // 2MB chunks
+    let uploadedChunks = 0;
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById("file");
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert("No file selected");
+        return;
       }
-      try {
-        let url=`/upload`
-        const response=await fetch(url,{
-          method:"POST",
-          body:formData
-        })
-        form.reset()
-        const parseRes=await response.json()
-        if(parseRes.error){
-          alert(parseRes.error)
-        }else{
-          alert(parseRes.msg)
+
+      progressContainer.style.display = "block";
+      let start = 0;
+      let totalChunks = Math.ceil(file.size / chunkSize);
+
+      async function uploadChunk(startIndex) {
+        if (startIndex >= file.size) {
+          return; // Stops recursion when all chunks are uploaded
         }
-      } catch (error) {
-        alert(error.message)
+
+        let chunk = file.slice(startIndex, startIndex + chunkSize);
+        let formData = new FormData();
+        formData.append("files", chunk);
+        formData.append("fileName", file.name);
+        formData.append("chunkIndex", uploadedChunks);
+        formData.append("totalChunks", totalChunks);
+
+        try {
+          const response = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error("Upload failed, retrying...");
+          }
+
+          uploadedChunks++;
+          progressBar.value = (uploadedChunks / totalChunks) * 100;
+          progressText.innerText = `Uploading: ${progressBar.value.toFixed(2)}% (${startIndex} / ${file.size} bytes)`;
+
+          startIndex += chunkSize;
+          await uploadChunk(startIndex); // Recursively upload the next chunk
+        } catch (error) {
+          console.error(error);
+          alert("Network error, retrying in 5 seconds...");
+          setTimeout(() => uploadChunk(startIndex), 5000); // Retry after 5 seconds
+        }
       }
-    })
-  </script>  
+
+      await uploadChunk(start);
+
+      if (uploadedChunks === totalChunks) {
+        alert("Upload completed!");
+      }
+    });
+  </script>
 </body>
 </html>
