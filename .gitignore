@@ -2,4 +2,19 @@ node_modules
 build
 .env
 downloads
-package-lock.json
+fileserver
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Vendor directory (if you use `go mod vendor`)
+/vendor/
