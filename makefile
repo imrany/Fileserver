@@ -1,21 +1,15 @@
-all: build copy 
+all: build
 # .DEFAULT_GOAL:=build
-# .PHONY: build copy 
 # variable
-B= npm
 
 build: 
 	@echo 'building app...'
-	rm -rf ./build&&npx tsc
+	rm -rf ./fileserver&&go build -o ./fileserver main.go
 
 clean:
 	@echo 'removing build dir..'
-	rm -rf ./build
+	rm -rf ./fileserver
 
 dev:
 	@echo 'starting dev server'
-	${B} run dev
-
-copy:
-	@echo 'copying views to build dir...'
-	cp -r ./views ./build
+	CompileDaemon -build="go build -o ./fileserver main.go" -command="./fileserver"

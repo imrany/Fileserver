@@ -5,6 +5,7 @@ import (
 	"os"
 	"log"
 	"encoding/json"
+	"html/template"
 )
 
 type Message struct{
@@ -17,53 +18,98 @@ type DownloadFile struct {
 	Mime string `json:"mime"`
 	IsDir bool   `json:"is_dir"`
 	FilePath string `json:"file_path"`
+	RelativeFilePath string `json:"relative_path"`
 }
 
 var downloadPath string
 
-func helloWorldJson(w http.ResponseWriter , r *http.Request){
-	helloMsg :=Message{
-		Message:"Hello world",
-	}
-
-	w.Header().Set("Content-Type","application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(helloMsg)
-}
-
-func uploadFile(w http.ResponseWriter, r *http.Request){
-	err := r.ParseMultipartForm(10 << 20) // 10 MB
+func uploadFile(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseMultipartForm(32 << 20) // 32 MB
 	if err != nil {
 		http.Error(w, "Error parsing form data", http.StatusBadRequest)
 		return
 	}
 
-	file, handler, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
+	fileName := r.FormValue("fileName")
+	chunkIndex := r.FormValue("chunkIndex")
+	totalChunks := r.FormValue("totalChunks")
 
-	dst, err := os.Create(downloadPath + "/" + handler.Filename)
-	if err != nil {
-		http.Error(w, "Unable to create the file", http.StatusInternalServerError)
-		return
+	type ErrorResponse struct {
+		Error string `json:"error"`
 	}
-	defer dst.Close()
-
-	_, err = dst.ReadFrom(file)
-	if err != nil {
-		http.Error(w, "Error saving the file", http.StatusInternalServerError)
+	if fileName == "" {
+		errorResponse := ErrorResponse{Error: "File name is required"}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorResponse)
 		return
 	}
 
+	files := r.MultipartForm.File["files"]
+	if len(files) == 0 {
+		errorResponse := ErrorResponse{Error: "No files received"}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(errorResponse)
+		return
+	}
+
+	filePath := downloadPath + "/" + fileName
+	for _, fh := range files {
+		src, err := fh.Open()
+		if err != nil {
+			http.Error(w, "Error opening uploaded chunk", http.StatusInternalServerError)
+			return
+		}
+		defer src.Close()
+
+		dst, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			http.Error(w, "Unable to write chunk", http.StatusInternalServerError)
+			return
+		}
+		defer dst.Close()
+
+		_, err = dst.ReadFrom(src)
+		if err != nil {
+			http.Error(w, "Error saving chunk", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	log.Printf("Uploaded chunk %s/%s", chunkIndex, totalChunks)
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(Message{Message: "File uploaded successfully"})
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"msg": "Chunk " + chunkIndex + "/" + totalChunks + " received successfully!",
+	})
+}
+
+func renderIndex(w http.ResponseWriter, r *http.Request) {
+	tmpl, err := template.ParseFiles("./views/index.html")
+	if err != nil {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+
+	data := struct {
+		Title   string
+		Message string
+	}{
+		Title:   "File Server",
+		Message: "Upload Files",
+	}
+	w.Header().Set("Content-Type", "text/html")
+	tmpl.Execute(w, data)
 }
 
 func readDownloads(w http.ResponseWriter, r *http.Request){
+	tmpl, err := template.ParseFiles("./views/downloads.html")
+	if err != nil {
+		http.Error(w, "Template not found", http.StatusInternalServerError)
+		return
+	}
+
 	downloadFolder, err := os.ReadDir(downloadPath)
 	if err != nil {
 		log.Printf("Error accessing downloads: %v", err.Error())
@@ -89,36 +135,46 @@ func readDownloads(w http.ResponseWriter, r *http.Request){
 			Mime:  http.DetectContentType([]byte{}), // Placeholder, as we don't have the actual content
 			IsDir: file.IsDir(),
 			FilePath: filePath,
+			RelativeFilePath: downloadPath + "/" + fileInfo.Name(),
 		})
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(downloadFiles)
+
+	data := struct {
+		Title   string
+		Message string
+		DownloadFiles []DownloadFile
+	}{
+		Title:   "Downloads",
+		Message: "Download Files",
+		DownloadFiles: downloadFiles,
+	}
+	w.Header().Set("Content-Type", "text/html")
+	tmpl.Execute(w, data)
 }
 
 func main(){
-	pwd, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Error getting current working directory: %v", err)
-	}
-	downloadPath =pwd + "/downloads"
-
+	downloadPath ="./downloads"
 	if err := os.Mkdir(downloadPath, 0755); err != nil && !os.IsExist(err) {
 		log.Fatalf("Failed to create download directory: %v", err)
 	}
 
 
-	fs := http.FileServer(http.Dir("./views"))
+	staticFs := http.FileServer(http.Dir("./static"))
+	downloadsFs := http.FileServer(http.Dir("./downloads"))
 
 	router := http.NewServeMux()
-	router.Handle("GET /views/", http.StripPrefix("/views/", fs))
-	router.HandleFunc("GET /", helloWorldJson)
-	router.HandleFunc("POST /upload", uploadFile)
-	router.HandleFunc("GET /read_file", readDownloads)
+	router.Handle("GET /static/", http.StripPrefix("/static/", staticFs))
+	router.Handle("GET /downloads/", http.StripPrefix("/downloads/", downloadsFs))
+	// router.Handle("/", fs)
+
+	router.HandleFunc("GET /", renderIndex)
+	router.HandleFunc("GET /downloads", readDownloads)
+	
+	router.HandleFunc("POST /api/upload", uploadFile)
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "8000"
 	}
 	srv := http.Server{
 		Addr: "0.0.0.0:" + port,

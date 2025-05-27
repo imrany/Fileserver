@@ -1,26 +1,127 @@
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Server</title>
-    <link rel="stylesheet" href="./style.css">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Title}}</title>
+  <link rel="shortcut icon" href="/static/favicon.jpg" type="image/x-jpg">
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="apple-touch-icon" href="/static/favicon.jpg">
+  <style>
+    body {
+      background: #f4f6fb;
+      height: 100vh;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: 60px auto 0 auto;
+      padding: 2.5rem 2rem 2rem 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: #2d3a4b;
+      margin-bottom: 1.5rem;
+      font-size: 2rem;
+      letter-spacing: 1px;
+    }
+
+    form {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    input[type="file"] {
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 8px;
+      background: #f9fafb;
+      margin-bottom: 1rem;
+      width: 100%;
+      font-size: 1rem;
+    }
+
+    button[type="submit"] {
+      background: linear-gradient(90deg, #4f8cff 0%, #38c6ff 100%);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.7rem 2rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 10px;
+      box-shadow: 0 2px 8px rgba(79, 140, 255, 0.08);
+    }
+
+    button[type="submit"]:hover {
+      background: linear-gradient(90deg, #38c6ff 0%, #4f8cff 100%);
+    }
+
+    #progressContainer {
+      width: 100%;
+      margin-top: 1.5rem;
+      text-align: center;
+    }
+
+    progress {
+      width: 100%;
+      height: 18px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #e5e7eb;
+      accent-color: #4f8cff;
+    }
+
+    #progressText {
+      margin-top: 0.5rem;
+      color: #4f8cff;
+      font-weight: 500;
+      font-size: 1rem;
+    }
+
+    a {
+      display: inline-block;
+      margin-top: 2rem;
+      color: #4f8cff;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+
+    a:hover {
+      color: #38c6ff;
+      text-decoration: underline;
+    }
+  </style>
 </head>
+
 <body>
   <div class="container">
-    <h1>Share Files</h1>
+    <h1>{{.Message}}</h1>
     <form id="uploadForm">
       <input type="file" name="file" id="file" required />
-      <button type="submit" style="margin-top: 10px;">Share</button>
+      <button type="submit">Upload</button>
     </form>
 
     <!-- Progress bar section -->
-    <div id="progressContainer" style="display: none; margin-top: 20px;">
+    <div id="progressContainer" style="display: none;">
       <progress id="progressBar" value="0" max="100"></progress>
       <p id="progressText">0% uploaded</p>
     </div>
 
-    <a href="./receive.html" style="margin-top: 20px;">See files</a>
+    <a href="/downloads">Go to Downloads</a>
   </div>
 
   <script>
@@ -59,11 +160,13 @@
         formData.append("totalChunks", totalChunks);
 
         try {
-          const response = await fetch("/upload", {
+          const response = await fetch("/api/upload", {
             method: "POST",
             body: formData,
           });
 
+          const parseRes = await response.json();
+          console.log(parseRes);
           if (!response.ok) {
             throw new Error("Upload failed, retrying...");
           }
@@ -76,7 +179,7 @@
           await uploadChunk(startIndex); // Recursively upload the next chunk
         } catch (error) {
           console.error(error);
-          alert("Network error, retrying in 5 seconds...");
+          // alert("Network error, retrying in 5 seconds...");
           setTimeout(() => uploadChunk(startIndex), 5000); // Retry after 5 seconds
         }
       }
@@ -89,4 +192,5 @@
     });
   </script>
 </body>
+
 </html>
