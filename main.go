@@ -1,11 +1,14 @@
 package main
 
 import (
-	"net/http"
-	"os"
-	"log"
+	"embed"
 	"encoding/json"
 	"html/template"
+	"log"
+	"net/http"
+	"os"
+
+	"github.com/imrany/fileserver/config"
 )
 
 type Message struct{
@@ -22,6 +25,12 @@ type DownloadFile struct {
 }
 
 var downloadPath string
+
+//go:embed templates/*.html
+var templates embed.FS
+
+//go:embed static/*
+var staticFolder embed.FS
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(32 << 20) // 32 MB
@@ -86,7 +95,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func renderIndex(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFiles("./views/index.html")
+	tmpl, err := template.New("").ParseFS(templates,"templates/*.html") 
 	if err != nil {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -100,11 +109,11 @@ func renderIndex(w http.ResponseWriter, r *http.Request) {
 		Message: "Upload Files",
 	}
 	w.Header().Set("Content-Type", "text/html")
-	tmpl.Execute(w, data)
+	tmpl.ExecuteTemplate(w, "index.html", data)
 }
 
 func readDownloads(w http.ResponseWriter, r *http.Request){
-	tmpl, err := template.ParseFiles("./views/downloads.html")
+	tmpl, err := template.New("").ParseFS(templates,"templates/*.html") 
 	if err != nil {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
 		return
@@ -149,7 +158,7 @@ func readDownloads(w http.ResponseWriter, r *http.Request){
 		DownloadFiles: downloadFiles,
 	}
 	w.Header().Set("Content-Type", "text/html")
-	tmpl.Execute(w, data)
+	tmpl.ExecuteTemplate(w, "downloads.html", data)
 }
 
 func main(){
@@ -159,11 +168,11 @@ func main(){
 	}
 
 
-	staticFs := http.FileServer(http.Dir("./static"))
+	staticFs := http.FileServerFS(staticFolder)
 	downloadsFs := http.FileServer(http.Dir("./downloads"))
 
 	router := http.NewServeMux()
-	router.Handle("GET /static/", http.StripPrefix("/static/", staticFs))
+	router.Handle("GET /static/", staticFs)
 	router.Handle("GET /downloads/", http.StripPrefix("/downloads/", downloadsFs))
 	// router.Handle("/", fs)
 
@@ -172,9 +181,9 @@ func main(){
 	
 	router.HandleFunc("POST /api/upload", uploadFile)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8000"
+	port, err := config.Getenv("PORT")
+	if err != nil {
+		port = "8080"
 	}
 	srv := http.Server{
 		Addr: "0.0.0.0:" + port,
