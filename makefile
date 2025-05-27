@@ -4,10 +4,14 @@ all: build
 
 build: 
 	@echo 'building app...'
-	rm -rf ./fileserver&&go build -o ./fileserver main.go
+	rm -rf ./fileserver
+	rm -rf bin
+	GOOS=linux GOARCH=amd64 go build -o bin/fileserver-linux main.go
+	GOOS=windows GOARCH=amd64 go build -o bin/fileserver-windows.exe main.go
+	GOOS=darwin GOARCH=amd64 go build -o bin/fileserver-darwin main.go
 
 clean:
-	@echo 'removing build dir..'
+	@echo 'removing binary..'
 	rm -rf ./fileserver
 
 dev:
