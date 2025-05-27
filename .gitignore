@@ -1,6 +1,7 @@
 .env
 downloads
 fileserver
+bin
 # Go build artifacts
 *.exe
 *.exe~
