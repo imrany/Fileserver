@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 
 	"github.com/imrany/fileserver/config"
 )
@@ -161,12 +162,11 @@ func readDownloads(w http.ResponseWriter, r *http.Request){
 	tmpl.ExecuteTemplate(w, "downloads.html", data)
 }
 
-func main(){
-	downloadPath ="./downloads"
+func main() {
+	downloadPath = "./downloads"
 	if err := os.Mkdir(downloadPath, 0755); err != nil && !os.IsExist(err) {
 		log.Fatalf("Failed to create download directory: %v", err)
 	}
-
 
 	staticFs := http.FileServerFS(staticFolder)
 	downloadsFs := http.FileServer(http.Dir("./downloads"))
@@ -174,19 +174,41 @@ func main(){
 	router := http.NewServeMux()
 	router.Handle("GET /static/", staticFs)
 	router.Handle("GET /downloads/", http.StripPrefix("/downloads/", downloadsFs))
-	// router.Handle("/", fs)
 
 	router.HandleFunc("GET /", renderIndex)
 	router.HandleFunc("GET /downloads", readDownloads)
-	
 	router.HandleFunc("POST /api/upload", uploadFile)
 
 	port, err := config.Getenv("PORT")
 	if err != nil {
 		port = "8080"
 	}
+
+	// Open browser after server starts
+	go func() {
+		url := "http://localhost:" + port
+		// Linux, macOS, Windows support
+		var cmd string
+		var args []string
+		switch {
+		case os.Getenv("WSL_DISTRO_NAME") != "":
+			cmd = "wslview"
+			args = []string{url}
+		case os.Getenv("XDG_SESSION_TYPE") != "":
+			cmd = "xdg-open"
+			args = []string{url}
+		case os.Getenv("OS") == "Windows_NT":
+			cmd = "rundll32"
+			args = []string{"url.dll,FileProtocolHandler", url}
+		default:
+			cmd = "open"
+			args = []string{url}
+		}
+		_ = exec.Command(cmd, args...).Start()
+	}()
+
 	srv := http.Server{
-		Addr: "0.0.0.0:" + port,
+		Addr:    "0.0.0.0:" + port,
 		Handler: router,
 	}
 
