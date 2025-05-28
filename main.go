@@ -157,11 +157,26 @@ func readDownloads(w http.ResponseWriter, r *http.Request){
 }
 
 func main() {
-	pwd, err := os.Getwd()
-	downloadPath = pwd + "/downloads"
-	if err != nil {
-		log.Fatalf("Failed to get download folder path %v", err.Error())
+	execPath, err := os.Executable()
+	if err == nil {
+		lastSlash := -1
+		for i, c := range execPath {
+			if c == '/' {
+				lastSlash = i
+			}
+		}
+		var basePath string
+		if lastSlash != -1 {
+			basePath = execPath[:lastSlash]
+		} else {
+			basePath = "."
+		}
+		downloadPath = basePath + "/downloads"
+	} else {
+		downloadPath = "./downloads"
 	}
+	
+	log.Printf("%v", downloadPath)
 
 	if err := os.Mkdir(downloadPath, 0755); err != nil && !os.IsExist(err) {
 		log.Fatalf("Failed to create download directory: %v", err)
