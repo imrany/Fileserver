@@ -134,17 +134,11 @@ func readDownloads(w http.ResponseWriter, r *http.Request){
 			continue
 		}
 
-		pwd, err := os.Getwd()
-		filePath := pwd + downloadPath + "/" + fileInfo.Name()
-		if err != nil {
-			filePath = ""
-		}
 		downloadFiles = append(downloadFiles, DownloadFile{
 			Name:  fileInfo.Name(),
 			Size:  fileInfo.Size(),
 			Mime:  http.DetectContentType([]byte{}), // Placeholder, as we don't have the actual content
 			IsDir: file.IsDir(),
-			FilePath: filePath,
 			RelativeFilePath: downloadPath + "/" + fileInfo.Name(),
 		})
 	}
@@ -163,13 +157,18 @@ func readDownloads(w http.ResponseWriter, r *http.Request){
 }
 
 func main() {
-	downloadPath = "./downloads"
+	pwd, err := os.Getwd()
+	downloadPath = pwd + "/downloads"
+	if err != nil {
+		log.Fatalf("Failed to get download folder path %v", err.Error())
+	}
+
 	if err := os.Mkdir(downloadPath, 0755); err != nil && !os.IsExist(err) {
 		log.Fatalf("Failed to create download directory: %v", err)
 	}
 
 	staticFs := http.FileServerFS(staticFolder)
-	downloadsFs := http.FileServer(http.Dir("./downloads"))
+	downloadsFs := http.FileServer(http.Dir(downloadPath))
 
 	router := http.NewServeMux()
 	router.Handle("GET /static/", staticFs)
