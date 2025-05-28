@@ -1,5 +1,4 @@
-# Fileserver
-A simple http server for file upload and download from a server it's running on, access through it IP address and port 8080 , i.e `http://<IP Addresss>:8080`
+This is a http server for file upload and download from a server it's running on, access through it IP address and port 8080 , i.e `http://<IP Addresss>:8080`
 
 ## FileServer v0.1.0 Features
 - **Large file support**: Up to 32GB uploads
