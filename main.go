@@ -139,7 +139,8 @@ func readDownloads(w http.ResponseWriter, r *http.Request){
 			Size:  fileInfo.Size(),
 			Mime:  http.DetectContentType([]byte{}), // Placeholder, as we don't have the actual content
 			IsDir: file.IsDir(),
-			RelativeFilePath: downloadPath + "/" + fileInfo.Name(),
+			RelativeFilePath: "/downloads/" + fileInfo.Name(),
+			FilePath: downloadPath + "/" + fileInfo.Name(),
 		})
 	}
 
@@ -176,8 +177,6 @@ func main() {
 		downloadPath = "./downloads"
 	}
 	
-	log.Printf("%v", downloadPath)
-
 	if err := os.Mkdir(downloadPath, 0755); err != nil && !os.IsExist(err) {
 		log.Fatalf("Failed to create download directory: %v", err)
 	}
