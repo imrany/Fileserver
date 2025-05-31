@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -197,10 +198,23 @@ func main() {
 		port = "8080"
 	}
 
-	// Open browser after server starts
+	
 	go func() {
-		url := "http://localhost:" + port
-		// Linux, macOS, Windows support
+		// Get device IP address
+		ip := "localhost"
+		addrs, err := net.InterfaceAddrs()
+		if err == nil {
+			for _, addr := range addrs {
+				if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+					ip = ipnet.IP.String()
+					break
+				}
+			}
+		}
+		url := "http://" + ip + ":" + port
+		log.Printf("Access the server at: %s", url)
+
+		// Open the URL in the default web browser
 		var cmd string
 		var args []string
 		switch {
@@ -225,6 +239,5 @@ func main() {
 		Handler: router,
 	}
 
-	log.Printf("Server running on PORT %v", port)
 	srv.ListenAndServe()
 }
